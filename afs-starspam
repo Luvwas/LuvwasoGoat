@@ -1,0 +1,65 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Luvwas Star Spam",
+   Icon = 0,
+   LoadingTitle = "Vem Celestial, Vem",
+   LoadingSubtitle = "by Luvwas",
+   ShowText = "Rayfield",
+   Theme = "Default",
+   ToggleUIKeybind = "K",
+
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = nil,
+      FileName = "Big Hub"
+   },
+
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+
+   KeySystem = false,
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided",
+      FileName = "Key",
+      SaveKey = true,
+      GrabKeyFromSite = false,
+      Key = {"Hello"}
+   }
+})
+
+-- cria a aba
+local Tab = Window:CreateTab("Star Opener", 4483362458) 
+local Section = Tab:CreateSection("Auto Star Opening")
+
+-- variável de controle
+local SpamOpen = false
+
+-- toggle para abrir o Egg de hxh
+local Toggle = Tab:CreateToggle({
+   Name = "Auto Open Hxh Egg",
+   CurrentValue = false,
+   Flag = "AutoStarSpam",
+   Callback = function(Value)
+      SpamOpen = Value
+      if SpamOpen then
+         task.spawn(function()
+            while SpamOpen do
+               -- dispara várias vezes por loop (DA PRA COLOCAR ATE SLA 1K KKKKKKKKKK)
+               for i = 1,200 do
+                  game:GetService("ReplicatedStorage")
+                      :WaitForChild("Remote")
+                      :WaitForChild("AttemptMultiOpen")
+                      :FireServer("HxH2Egg")
+               end
+               task.wait(0.01) 
+            end
+         end)
+      end
+   end,
+})
