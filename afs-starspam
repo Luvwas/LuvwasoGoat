@@ -55,7 +55,7 @@ local Toggle = Tab:CreateToggle({
                   game:GetService("ReplicatedStorage")
                       :WaitForChild("Remote")
                       :WaitForChild("AttemptMultiOpen")
-                      :FireServer("HxH2Egg")
+                      :FireServer("GachiakutaEgg")
                end
                task.wait(0.01) 
             end
