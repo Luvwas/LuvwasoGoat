@@ -51,7 +51,7 @@ local Toggle = Tab:CreateToggle({
          task.spawn(function()
             while SpamOpen do
                -- dispara várias vezes por loop (DA PRA COLOCAR ATE SLA 1K KKKKKKKKKK)
-               for i = 1,200 do
+               for i = 1,5 do
                   game:GetService("ReplicatedStorage")
                       :WaitForChild("Remote")
                       :WaitForChild("AttemptMultiOpen")
