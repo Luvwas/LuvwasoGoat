@@ -37,12 +37,10 @@ local Window = Rayfield:CreateWindow({
 local Tab = Window:CreateTab("Star Opener", 4483362458) 
 local Section = Tab:CreateSection("Auto Star Opening")
 
--- variável de controle
 local SpamOpen = false
 
--- toggle para abrir o Egg de hxh
 local Toggle = Tab:CreateToggle({
-   Name = "Auto Open Hxh Egg",
+   Name = "Auto Open Gachiakuta Egg",
    CurrentValue = false,
    Flag = "AutoStarSpam",
    Callback = function(Value)
