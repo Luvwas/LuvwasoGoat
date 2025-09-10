@@ -1,0 +1,711 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+
+local AllPassives = {
+    ["Normal"] = {
+        "Dmg1", "Dmg2", "Dmg3", "Boss1", "Boss2", "Boss3", 
+        "Drop1", "Drop2", "Drop3", "Yen1", "Yen2", "Yen3",
+        "LevelUp1", "LevelUp2", "LevelUp3", "Ability1", "Ability2", "Ability3",
+        "Leader1", "Leader2", "Leader3", "Luck1", "Luck2", "Luck3", "Luck4",
+        "Cap1", "Cap2", "Cap3", "Speed", "Giant", "Tiny", "Tank", "Blessing",
+        "Gold", "Merc", "Dragon", "Prodigy", "Ghost", "Ace",
+        "Demon", "BrokenLimiter", "Angel", "Interstellar"
+    },
+    ["Summer24"] = {
+        "SeaSpearman", "DevastatingDaylight", "SummerFortune",
+        "SapphireSummer", "SummerGenerosity", "ShiningSun", "CoralCommander"
+    }
+}
+AllPassives["Requiem"] = AllPassives["Normal"]
+
+local selectedUnit, selectedMachine = nil, "Normal"
+local selectedPassives = {}
+local selectedSlot = 1
+local completeBothSlots = false
+local rolling = false
+local rollDelay = 0.2
+local rollCount = 0
+
+local slotStatus = {
+    [1] = false,
+    [2] = false
+}
+
+local multiUnitQueue = {}
+local multiUnitRolling = false
+local passiveLog = {}
+
+local detectionConfig = {
+    baseDelay = 0.3,
+    maxRetries = 3,
+    retryDelay = 0.1,
+    enabled = false
+}
+
+local LocalDairebStore, GameData
+local success, error = pcall(function()
+    LocalDairebStore = require(game:GetService("ReplicatedStorage").ModuleScripts.LocalDairebStore)
+    LocalDairebStore:WaitForInit()
+    GameData = LocalDairebStore.GetStoreProxy("GameData")
+end)
+
+local HasPassive = nil
+pcall(function()
+    HasPassive = require(game:GetService("ReplicatedStorage").ModuleScripts.HasPassive)
+end)
+
+local function getCurrentUnit(uid)
+    local targetUID = uid or selectedUnit
+    if not GameData or not targetUID then return nil end
+    
+    local success, result = pcall(function()
+        local gameData = GameData:GetData()
+        if not gameData or not gameData.Pets then return nil end
+        
+        for _, unit in pairs(gameData.Pets) do
+            if unit and unit.UID == targetUID then
+                return unit
+            end
+        end
+        return nil
+    end)
+    
+    return success and result or nil
+end
+
+local function passiveToString(passive)
+    if passive == nil then return nil end
+    
+    if type(passive) == "string" and passive ~= "" and passive ~= "nil" then 
+        return passive 
+    end
+    
+    if type(passive) == "number" then 
+        return tostring(passive) 
+    end
+    
+    local str = tostring(passive)
+    if str and str ~= "" and str ~= "nil" and str ~= "false" and str ~= "true" then
+        return str
+    end
+    
+    return nil
+end
+
+local function checkPassivesInSlot(unit, desiredPassives, slotNumber)
+    if not unit or not unit.Passives or not desiredPassives then 
+        print("❌ Debug: unit, passives ou desiredPassives é nil")
+        return false, nil 
+    end
+    
+    local slotPassive = unit.Passives[slotNumber]
+    if not slotPassive then
+        print("❌ Debug: Slot " .. slotNumber .. " não existe ou está vazio")
+        return false, nil
+    end
+    
+    local slotPassiveStr = passiveToString(slotPassive)
+    if not slotPassiveStr then
+        print("❌ Debug: Passiva do slot " .. slotNumber .. " não pode ser convertida para string")
+        return false, nil
+    end
+    
+    print("🔍 Debug: Slot " .. slotNumber .. " tem: '" .. slotPassiveStr .. "'")
+    
+    for _, desired in pairs(desiredPassives) do
+        local desiredStr = tostring(desired)
+        print("🔍 Debug: Comparando '" .. slotPassiveStr .. "' com '" .. desiredStr .. "'")
+        
+        if slotPassiveStr == desiredStr then
+            print("✅ Debug: MATCH EXATO encontrado!")
+            return true, slotPassiveStr
+        end
+        
+        if string.lower(slotPassiveStr) == string.lower(desiredStr) then
+            print("✅ Debug: MATCH CASE-INSENSITIVE encontrado!")
+            return true, slotPassiveStr
+        end
+    end
+    
+    print("❌ Debug: Nenhum match encontrado para slot " .. slotNumber)
+    return false, nil
+end
+
+local function updateSlotStatus(unit, desiredPassives)
+    if not unit then return end
+    
+    local slot1Found, slot1Passive = checkPassivesInSlot(unit, desiredPassives, 1)
+    slotStatus[1] = slot1Found
+    
+    local slot2Found, slot2Passive = checkPassivesInSlot(unit, desiredPassives, 2)
+    slotStatus[2] = slot2Found
+    
+    print("📊 Status Slots - Slot1: " .. (slotStatus[1] and "✅" or "❌") .. " Slot2: " .. (slotStatus[2] and "✅" or "❌"))
+    
+    return slot1Found, slot1Passive, slot2Found, slot2Passive
+end
+
+local function getNextSlotToRoll()
+    if completeBothSlots then
+        if not slotStatus[1] and not slotStatus[2] then
+            return (rollCount % 2 == 1) and 1 or 2
+        elseif not slotStatus[1] then
+            return 1
+        elseif not slotStatus[2] then
+            return 2
+        else
+            return nil
+        end
+    else
+        return slotStatus[selectedSlot] and nil or selectedSlot
+    end
+end
+
+local function shouldStopRolling()
+    if completeBothSlots then
+        return slotStatus[1] and slotStatus[2]
+    else
+        return slotStatus[selectedSlot]
+    end
+end
+
+local function GetUnits()
+    if not GameData then return {"Erro: GameData não carregado"} end
+    
+    local success, result = pcall(function()
+        local gameData = GameData:GetData()
+        if not gameData or not gameData.Pets then
+            return {"Nenhum pet encontrado"}
+        end
+            
+        local list = {}
+        for _, unit in pairs(gameData.Pets) do
+            if unit and unit.UID then
+                local displayName = unit.PetId or "Unknown"
+                if unit.CustomName and unit.CustomName ~= "" then
+                    displayName = displayName .. " (" .. unit.CustomName .. ")"
+                end
+                table.insert(list, tostring(unit.UID) .. " | " .. displayName)
+            end
+        end
+        
+        return #list > 0 and list or {"Nenhum pet encontrado"}
+    end)
+    
+    return success and result or {"Erro ao carregar pets"}
+end
+
+local function notify(title, text, duration)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 3
+    })
+end
+
+local function updatePassiveDropdown(machine)
+    print("🎮 Máquina selecionada: " .. machine)
+    print("🎯 Passivas disponíveis:")
+    local passives = AllPassives[machine] or AllPassives["Normal"]
+    for i, passive in ipairs(passives) do
+        print("   " .. i .. ". " .. passive)
+    end
+end
+
+local Window = Library.CreateLib("Luvwas Passive Roll V2", "DarkTheme")
+
+local MainTab = Window:NewTab("🎲 Main")
+local MainSection = MainTab:NewSection("Configuração Principal")
+
+MainSection:NewLabel("GameData: " .. (GameData and "✅ Carregado" or "❌ Erro"))
+MainSection:NewLabel("HasPassive: " .. (HasPassive and "✅ Disponível" or "⚠️ Manual"))
+
+local unitList = GetUnits()
+MainSection:NewDropdown("Selecionar Boneco", "Escolha seu boneco", unitList, function(currentOption)
+    if currentOption and not currentOption:find("Erro") and not currentOption:find("Nenhum") then
+        selectedUnit = tonumber(currentOption:match("^(%d+)"))
+        slotStatus[1] = false
+        slotStatus[2] = false
+        
+        notify("Unit Selecionada", "✅ Unit: " .. tostring(selectedUnit), 2)
+        
+        local unit = getCurrentUnit()
+        if unit and unit.Passives then
+            local passiveList = {}
+            for i, passive in pairs(unit.Passives) do
+                local passiveStr = passiveToString(passive)
+                if passiveStr then
+                    table.insert(passiveList, "Slot " .. i .. ": " .. passiveStr)
+                end
+            end
+            local passiveText = #passiveList > 0 and table.concat(passiveList, ", ") or "Nenhuma"
+            print("🎯 Passivas atuais: " .. passiveText)
+        end
+    else
+        selectedUnit = nil
+    end
+end)
+
+MainSection:NewButton("🔄 Atualizar Lista", "Atualizar lista de bonecos", function()
+    unitList = GetUnits()
+    notify("Lista Atualizada", "🔄 Lista de bonecos atualizada!", 2)
+end)
+
+MainSection:NewDropdown("Selecionar Máquina", "Escolha a máquina", {"Normal", "Requiem", "Summer24"}, function(currentOption)
+    selectedMachine = currentOption
+    notify("Máquina Selecionada", "🎮 Máquina: " .. currentOption, 2)
+    updatePassiveDropdown(currentOption)
+end)
+
+local SlotSection = MainTab:NewSection("🎰 Configuração de Slots")
+
+SlotSection:NewDropdown("Selecionar Slot", "Escolha qual slot rolar", {"1", "2"}, function(currentOption)
+    selectedSlot = tonumber(currentOption)
+    notify("Slot Selecionado", "🎰 Slot: " .. currentOption, 2)
+    print("🎰 Rolando no slot: " .. currentOption)
+end)
+
+SlotSection:NewToggle("🎯 Completar Ambos Slots", "Só para quando ambos os slots tiverem a passiva desejada", function(state)
+    completeBothSlots = state
+    if state then
+        notify("Modo Duplo Ativado", "🎯 Só para quando AMBOS os slots tiverem a passiva!", 4)
+        print("🎯 Modo: Completar ambos os slots antes de parar")
+    else
+        notify("Modo Simples Ativado", "🎰 Para quando o slot " .. selectedSlot .. " tiver a passiva", 2)
+        print("🎰 Modo: Slot único (" .. selectedSlot .. ")")
+    end
+end)
+
+local PassiveSection = MainTab:NewSection("Passivas Desejadas")
+
+PassiveSection:NewButton("📋 Ver Passivas da Máquina", "Ver passivas disponíveis para a máquina atual", function()
+    local passives = AllPassives[selectedMachine] or AllPassives["Normal"]
+    print("\n🎮 === PASSIVAS PARA " .. selectedMachine .. " ===")
+    for i, passive in ipairs(passives) do
+        print(i .. ". " .. passive)
+    end
+    print("=====================================\n")
+    notify("Passivas Mostradas", "📋 " .. #passives .. " passivas no console", 3)
+end)
+
+PassiveSection:NewTextBox("Adicionar Passiva", "Digite o nome da passiva", function(txt)
+    if txt and txt ~= "" then
+        local machinePassives = AllPassives[selectedMachine] or AllPassives["Normal"]
+        local found = false
+        
+        for _, passive in ipairs(machinePassives) do
+            if string.lower(passive) == string.lower(txt) then
+                found = true
+                if not table.find(selectedPassives, passive) then
+                    table.insert(selectedPassives, passive)
+                    notify("Passiva Adicionada", "✅ " .. passive .. " adicionada!", 2)
+                    print("🎯 Passivas selecionadas: " .. table.concat(selectedPassives, ", "))
+                else
+                    notify("Já Selecionada", "⚠️ " .. passive .. " já está selecionada!", 2)
+                end
+                break
+            end
+        end
+        
+        if not found then
+            notify("Passiva Inválida", "❌ '" .. txt .. "' não existe na máquina " .. selectedMachine, 3)
+        end
+    end
+end)
+
+PassiveSection:NewButton("🗑️ Limpar Passivas", "Remover todas as passivas selecionadas", function()
+    selectedPassives = {}
+    notify("Passivas Limpas", "🗑️ Todas as passivas removidas!", 2)
+    print("🎯 Passivas selecionadas: (nenhuma)")
+end)
+
+PassiveSection:NewButton("📋 Ver Passivas Selecionadas", "Mostrar passivas selecionadas", function()
+    if #selectedPassives > 0 then
+        local passiveText = table.concat(selectedPassives, ", ")
+        print("🎯 Passivas selecionadas: " .. passiveText)
+        local modeText = completeBothSlots and "Modo: Ambos os slots" or ("Modo: Slot " .. selectedSlot)
+        print("🎰 " .. modeText)
+        notify("Passivas Selecionadas", "📋 " .. #selectedPassives .. " passivas - veja o console", 3)
+    else
+        notify("Nenhuma Passiva", "❌ Nenhuma passiva selecionada", 2)
+    end
+end)
+
+local ControlSection = MainTab:NewSection("Controles")
+
+ControlSection:NewSlider("Delay entre rolls", "Delay em segundos", 2, 0.1, function(s)
+    rollDelay = s / 10
+end)
+
+ControlSection:NewSlider("Delay de detecção", "Delay de detecção em segundos", 3, 0.1, function(s)
+    detectionConfig.baseDelay = s / 10
+end)
+
+local autoRollActive = false
+ControlSection:NewToggle("🎲 Auto Roll", "Iniciar/Parar Auto Roll", function(state)
+    if state then
+        if not selectedUnit then
+            notify("Erro", "❌ Selecione um boneco primeiro!", 3)
+            return
+        end
+        
+        if not selectedPassives or not next(selectedPassives) then
+            notify("Erro", "❌ Selecione pelo menos uma passiva!", 3)
+            return
+        end
+        
+        rolling = true
+        rollCount = 0
+        autoRollActive = true
+        
+        slotStatus[1] = false
+        slotStatus[2] = false
+        
+        local modeText = completeBothSlots and "AMBOS os slots" or ("SLOT " .. selectedSlot)
+        notify("Auto Roll Iniciado", "🚀 " .. modeText .. " - " .. table.concat(selectedPassives, ", "), 4)
+        
+        task.spawn(function()
+            print("🚀 Iniciando Auto Roll...")
+            
+            while rolling and autoRollActive do
+                local currentUnit = getCurrentUnit(selectedUnit)
+                if not currentUnit then
+                    task.wait(0.5)
+                    continue
+                end
+                
+                updateSlotStatus(currentUnit, selectedPassives)
+                
+                if shouldStopRolling() then
+                    rolling = false
+                    autoRollActive = false
+                    
+                    local completedSlots = {}
+                    if slotStatus[1] then table.insert(completedSlots, "Slot 1") end
+                    if slotStatus[2] then table.insert(completedSlots, "Slot 2") end
+                    
+                    notify("🎉 OBJETIVO ALCANÇADO!", table.concat(completedSlots, " + ") .. " completado(s) em " .. rollCount .. " rolls!", 10)
+                    
+                    local timestamp = os.date("%H:%M:%S")
+                    local logEntry = string.format("[%s] %s completado (%d rolls)", timestamp, table.concat(completedSlots, " + "), rollCount)
+                    table.insert(passiveLog, logEntry)
+                    if #passiveLog > 10 then
+                        table.remove(passiveLog, 1)
+                    end
+                    
+                    break
+                end
+                
+                local nextSlot = getNextSlotToRoll()
+                if not nextSlot then
+                    rolling = false
+                    autoRollActive = false
+                    print("🎉 Todos os objetivos alcançados!")
+                    break
+                end
+                
+                rollCount = rollCount + 1
+                print("🎲 Roll #" .. rollCount .. " no SLOT " .. nextSlot)
+                
+                local rollSuccess, rollError = pcall(function()
+                    game:GetService("ReplicatedStorage").Remote.RollPassive:FireServer(
+                        selectedUnit, selectedMachine, true, nextSlot
+                    )
+                end)
+                
+                if not rollSuccess then
+                    rolling = false
+                    autoRollActive = false
+                    notify("Erro no Roll", "❌ Erro: " .. tostring(rollError), 5)
+                    print("❌ Erro no roll: " .. tostring(rollError))
+                    break
+                end
+                
+                task.wait(detectionConfig.baseDelay)
+                
+                if rollCount % 10 == 0 then
+                    print("🎲 Roll #" .. rollCount .. " - Slot1: " .. (slotStatus[1] and "✅" or "❌") .. " Slot2: " .. (slotStatus[2] and "✅" or "❌"))
+                end
+                
+                if not rolling then break end
+                
+                local currentDelayMultiplier = 1
+                if completeBothSlots then
+                    if (slotStatus[1] and not slotStatus[2]) or (not slotStatus[1] and slotStatus[2]) then
+                        currentDelayMultiplier = 1.3
+                    end
+                end
+                
+                task.wait(rollDelay * currentDelayMultiplier)
+            end
+        end)
+        
+    else
+        rolling = false
+        autoRollActive = false
+        notify("Auto Roll Parado", "⏹️ Auto Roll parado pelo usuário", 2)
+    end
+end)
+
+ControlSection:NewButton("🛑 Parada de Emergência", "Parar todos os sistemas", function()
+    rolling = false
+    multiUnitRolling = false
+    autoRollActive = false
+    notify("Sistema Parado", "🛑 Todos os sistemas parados!", 2)
+end)
+
+local MultiTab = Window:NewTab("🚀 Multi-Unit")
+local MultiSection = MultiTab:NewSection("Gerenciar Fila")
+
+MultiSection:NewButton("➕ Adicionar à Fila", "Adicionar boneco selecionado à fila", function()
+    if not selectedUnit then
+        notify("Erro", "❌ Selecione um boneco na aba Main primeiro!", 3)
+        return
+    end
+    
+    for _, unitData in ipairs(multiUnitQueue) do
+        if unitData.uid == selectedUnit then
+            notify("Já na Fila", "⚠️ Este boneco já está na fila!", 3)
+            return
+        end
+    end
+    
+    if #multiUnitQueue >= 15 then
+        notify("Fila Cheia", "⚠️ Fila cheia! Máximo 15 personagens.", 3)
+        return
+    end
+    
+    local unit = getCurrentUnit()
+    local unitName = unit and (unit.PetId or "Unknown") or ("Unit " .. selectedUnit)
+    
+    table.insert(multiUnitQueue, {
+        uid = selectedUnit,
+        name = unitName,
+        completed = false
+    })
+    
+    notify("Adicionado à Fila", "✅ " .. unitName .. " adicionado! Total: " .. #multiUnitQueue, 3)
+    print("📋 Fila atual: " .. #multiUnitQueue .. " personagens")
+end)
+
+MultiSection:NewButton("📋 Ver Fila", "Ver fila atual", function()
+    if #multiUnitQueue == 0 then
+        notify("Fila Vazia", "📋 Nenhum personagem na fila", 2)
+    else
+        print("\n📋 === FILA MULTI-UNIT ===")
+        local modeText = completeBothSlots and "[MODO: AMBOS SLOTS]" or ("[MODO: SLOT " .. selectedSlot .. "]")
+        print(modeText)
+        for i, unitData in ipairs(multiUnitQueue) do
+            local status = unitData.completed and "✅" or "⏳"
+            print(i .. ". " .. unitData.name .. " " .. status)
+        end
+        print("========================\n")
+        
+        notify("Fila Atual", "📋 " .. #multiUnitQueue .. " personagens - veja o console", 3)
+    end
+end)
+
+MultiSection:NewButton("🗑️ Limpar Fila", "Limpar toda a fila", function()
+    multiUnitQueue = {}
+    notify("Fila Limpa", "🗑️ Fila limpa com sucesso!", 2)
+end)
+
+local multiUnitActive = false
+MultiSection:NewToggle("🚀 Iniciar Multi-Unit", "Processar toda a fila", function(state)
+    if state then
+        if #multiUnitQueue == 0 then
+            notify("Fila Vazia", "❌ Adicione pelo menos um personagem à fila!", 3)
+            return
+        end
+        
+        if not selectedPassives or not next(selectedPassives) then
+            notify("Sem Passivas", "❌ Selecione passivas na aba Main!", 3)
+            return
+        end
+        
+        multiUnitRolling = true
+        rolling = true
+        multiUnitActive = true
+        rollCount = 0
+        
+        local modeText = completeBothSlots and "AMBOS SLOTS" or ("SLOT " .. selectedSlot)
+        notify("Multi-Unit Iniciado", "🚀 " .. modeText .. " - " .. #multiUnitQueue .. " personagens", 4)
+        print("🚀 === INICIANDO MULTI-UNIT ===")
+        print("📋 Fila: " .. #multiUnitQueue .. " personagens")
+        print("🎰 Modo: " .. modeText)
+        print("🎯 Procurando: " .. table.concat(selectedPassives, ", "))
+        
+        task.spawn(function()
+            local processedCount = 0
+            
+            while multiUnitRolling and multiUnitActive and #multiUnitQueue > 0 do
+                local currentUnitData = multiUnitQueue[1]
+                
+                if not currentUnitData then
+                    break
+                end
+                
+                local currentUID = currentUnitData.uid
+                local unitName = currentUnitData.name
+                
+                print("🎲 Processando: " .. unitName .. " (UID: " .. currentUID .. ")")
+                notify("Processando", "🎲 " .. unitName, 2)
+                
+                slotStatus[1] = false
+                slotStatus[2] = false
+                
+                local unitRollCount = 0
+                local maxRollsPerUnit = completeBothSlots and 3000 or 2000
+                
+                while multiUnitRolling and multiUnitActive and unitRollCount < maxRollsPerUnit do
+                    local currentUnit = getCurrentUnit(currentUID)
+                    if not currentUnit then
+                        print("⚠️ Unit " .. unitName .. " não encontrada, pulando...")
+                        break
+                    end
+                    
+                    updateSlotStatus(currentUnit, selectedPassives)
+                    
+                    if shouldStopRolling() then
+                        local completedSlots = {}
+                        if slotStatus[1] then table.insert(completedSlots, "Slot 1") end
+                        if slotStatus[2] then table.insert(completedSlots, "Slot 2") end
+                        
+                        local modeText = completeBothSlots and "[AMBOS SLOTS]" or ("[SLOT " .. selectedSlot .. "]")
+                        notify("Sucesso Multi-Unit!", "🎉 " .. unitName .. " " .. modeText .. "!", 5)
+                        
+                        local timestamp = os.date("%H:%M:%S")
+                        local logEntry = string.format("[%s] %s: %s %s (%d rolls)", 
+                            timestamp, unitName, modeText, table.concat(completedSlots, " + "), unitRollCount)
+                        table.insert(passiveLog, logEntry)
+                        if #passiveLog > 15 then
+                            table.remove(passiveLog, 1)
+                        end
+                        
+                        print("🎉 " .. unitName .. " completou " .. table.concat(completedSlots, " + ") .. " em " .. unitRollCount .. " rolls!")
+                        
+                        table.remove(multiUnitQueue, 1)
+                        processedCount = processedCount + 1
+                        
+                        break
+                    end
+                    
+                    local nextSlot = getNextSlotToRoll()
+                    if not nextSlot then
+                        print("🎉 " .. unitName .. " completou todos os objetivos!")
+                        table.remove(multiUnitQueue, 1)
+                        processedCount = processedCount + 1
+                        break
+                    end
+                    
+                    unitRollCount = unitRollCount + 1
+                    rollCount = rollCount + 1
+                    
+                    local rollSuccess, rollError = pcall(function()
+                        game:GetService("ReplicatedStorage").Remote.RollPassive:FireServer(
+                            currentUID, selectedMachine, true, nextSlot
+                        )
+                    end)
+                    
+                    if not rollSuccess then
+                        print("❌ Erro no roll para " .. unitName .. ": " .. tostring(rollError))
+                        break
+                    end
+                    
+                    task.wait(detectionConfig.baseDelay)
+                    
+                    if not multiUnitRolling then break end
+                    
+                    if unitRollCount % 25 == 0 then
+                        local progress = math.floor((unitRollCount / maxRollsPerUnit) * 100)
+                        print("📊 " .. unitName .. ": " .. unitRollCount .. " rolls (" .. progress .. "%) - Slot1: " .. 
+                            (slotStatus[1] and "✅" or "❌") .. " Slot2: " .. (slotStatus[2] and "✅" or "❌"))
+                    end
+                    
+                    if not multiUnitRolling then break end
+                    
+                    task.wait(rollDelay)
+                end
+                
+                if unitRollCount >= maxRollsPerUnit then
+                    print("⚠️ " .. unitName .. " atingiu limite de " .. maxRollsPerUnit .. " rolls")
+                    table.remove(multiUnitQueue, 1)
+                    processedCount = processedCount + 1
+                end
+                
+                if multiUnitRolling and #multiUnitQueue > 0 then
+                    task.wait(0.5)
+                end
+            end
+            
+            multiUnitRolling = false
+            rolling = false
+            multiUnitActive = false
+            
+            print("🏁 Multi-Unit finalizado! Processados: " .. processedCount .. " personagens")
+            
+            if #multiUnitQueue == 0 then
+                notify("Multi-Unit Concluído!", "🎉 Todos os " .. processedCount .. " personagens completaram!", 8)
+            else
+                notify("Multi-Unit Parado", "⏹️ Processados: " .. processedCount .. ", Restantes: " .. #multiUnitQueue, 5)
+            end
+        end)
+        
+    else
+        multiUnitRolling = false
+        rolling = false
+        multiUnitActive = false
+        notify("Multi-Unit Parado", "⏹️ Multi-Unit parado pelo usuário", 2)
+    end
+end)
+
+local MultiAdvancedSection = MultiTab:NewSection("Configurações Avançadas")
+
+local maxRollsPerUnitSetting = 2000
+MultiAdvancedSection:NewSlider("Max Rolls por Unit", "Máximo de rolls por personagem", 5000, 1000, function(s)
+    maxRollsPerUnitSetting = s * 100
+    notify("Limite Alterado", "📊 Max rolls: " .. maxRollsPerUnitSetting, 2)
+end)
+
+MultiAdvancedSection:NewButton("📊 Estatísticas da Fila", "Ver estatísticas detalhadas", function()
+    if #multiUnitQueue == 0 then
+        notify("Fila Vazia", "📊 Nenhum dado para mostrar", 2)
+        return
+    end
+    
+    print("\n📊 === ESTATÍSTICAS DA FILA ===")
+    print("Total de personagens: " .. #multiUnitQueue)
+    print("Modo: " .. (completeBothSlots and "Ambos os slots" or ("Slot " .. selectedSlot)))
+    print("Passivas procuradas: " .. table.concat(selectedPassives, ", "))
+    print("Estimativa total de rolls: " .. (#multiUnitQueue * maxRollsPerUnitSetting))
+    print("Tempo estimado (delay " .. rollDelay .. "s): " .. 
+        math.floor((#multiUnitQueue * maxRollsPerUnitSetting * rollDelay) / 60) .. " minutos")
+    print("=============================\n")
+    
+    notify("Estatísticas", "📊 Dados no console", 3)
+end)
+
+local DebugTab = Window:NewTab("🔧 Debug")
+local DebugSection = DebugTab:NewSection("Ferramentas de Debug")
+
+DebugSection:NewButton("🔍 Status Atual dos Slots", "Ver status detalhado", function()
+    if not selectedUnit then
+        notify("Erro Debug", "❌ Selecione uma unit primeiro!", 2)
+        return
+    end
+    
+    local unit = getCurrentUnit(selectedUnit)
+    if unit then
+        print("\n🔍 === STATUS DOS SLOTS ===")
+        updateSlotStatus(unit, selectedPassives)
+        
+        local nextSlot = getNextSlotToRoll()
+        print("🎯 Próximo slot a rolar: " .. (nextSlot or "NENHUM (completo)"))
+        print("🛑 Deve parar? " .. (shouldStopRolling() and "SIM" or "NÃO"))
+        print("=========================\n")
+        
+        notify("Debug Completo", "🔍 Status no console", 2)
+    end
+end)
+
+notify("Sistema Carregado", "🎰 Luvwas Passive Roll V2 carregada!", 3)
+print("🚀 Luvwas Passive Roll V2 - Sistema pronto para uso!")
