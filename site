@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luvwas Scripts Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d0d0d;
+            --bg-secondary: #151515;
+            --bg-card: #1a1a1a;
+            --bg-card-hover: #222222;
+            --accent: #4a90e2;
+            --text-primary: #e8e8e8;
+            --text-secondary: #8a8a8a;
+            --border-color: #2a2a2a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 60px 30px;
+        }
+
+        /* Header */
+        header {
+            margin-bottom: 80px;
+        }
+
+        .header-content {
+            max-width: 800px;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            gap: 50px;
+            margin: 50px 0;
+            padding: 30px 0;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        /* Scripts Grid */
+        .scripts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 30px;
+        }
+
+        /* Script Card */
+        .script-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px; /* Borda arredondada */
+            padding: 35px;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .script-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+            transform: translateY(-5px); /* Efeito de elevação */
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .card-icon {
+            font-size: 2.5em;
+            line-height: 1;
+        }
+
+        .card-title-section {
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 1.6em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .card-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--accent); /* Cor de destaque */
+            color: #ffffff; /* Texto branco */
+            font-size: 0.7em;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px; /* Borda arredondada */
+        }
+
+        .card-description {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 25px;
+            flex-grow: 1; /* Faz a descrição ocupar espaço disponível */
+        }
+
+        /* Features */
+        .features {
+            background: var(--bg-secondary);
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+        }
+
+        .features-title {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .features-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .feature-item {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .feature-item::before {
+            content: "•";
+            color: var(--accent);
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: auto; /* Alinha os botões na base do card */
+        }
+
+        .btn {
+            padding: 15px 25px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border-radius: 5px;
+        }
+
+        .btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #5a9fe8;
+            border-color: #5a9fe8;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 40px 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.visible {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            margin: 0 auto;
+            padding: 40px;
+            width: 90%;
+            max-width: 900px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+
+        .close {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .close:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+            border-color: var(--accent);
+        }
+        
+        .code-container pre {
+            background: var(--bg-secondary);
+            padding: 25px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.8;
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .code-label {
+            font-size: 0.85em;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .copy-btn {
+            padding: 8px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+        }
+
+        .copy-btn.copied {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #ffffff;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 100px;
+            padding-top: 50px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        /* Responsive */
+        @media (max-width: 992px) {
+            .scripts-grid {
+                grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 40px 20px; }
+            h1 { font-size: 2.5em; }
+            .stats-bar { flex-direction: column; gap: 25px; }
+            .scripts-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>Luvwas Scripts Hub</h1>
+                <p class="subtitle">Scripts otimizados para diversos jogos do Roblox, com suporte para PC e Mobile.</p>
+            </div>
+        </header>
+
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-number">5</div>
+                <div class="stat-label">Scripts Ativos</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">2025</div>
+                <div class="stat-label">Última Atualização</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">Grátis</div>
+                <div class="stat-label">Acesso</div>
+            </div>
+        </div>
+
+        <div class="scripts-grid">
+            <div class="script-card">
+                <div class="card-header">
+                    <div class="card-icon">⚔️</div>
+                    <div class="card-title-section">
+                        <div class="card-title">Luvwas HUB - AFS</div>
+                        <span class="card-badge">Anime Fighters</span>
+                    </div>
+                </div>
+                <p class="card-description">Hub completo com auto-attack, proximity, auto open eggs e funcionalidades avançadas para maximizar sua eficiência no AFS.</p>
+                <div class="features">
+                    <div class="features-title">Funcionalidades</div>
+                    <div class="features-list">
+                        <div class="feature-item">Auto Attack</div>
+                        <div class="feature-item">Proximity Auto</div>
+                        <div class="feature-item">Auto Open Eggs</div>
+                        <div class="feature-item">Artefato Spam</div>
+                        <div class="feature-item">Speed Boost</div>
+                        <div class="feature-item">World Teleport</div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="showModal('loadstringModal', 'afsHub')">Loadstring</button>
+                    <button class="btn" onclick="showModal('sourceModal', 'afsHub')">Source</button>
+                </div>
+            </div>
+
+            <div class="script-card">
+                <div class="card-header">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-title-section">
+                        <div class="card-title">Lapo HUB V3</div>
+                        <span class="card-badge">Anime World Tower Defense</span>
+                    </div>
+                </div>
+                <p class="card-description">Hub completo para Anime World Tower Defense com automação de itens, limit breaks, traits, banners, skins e muito mais.</p>
+                <div class="features">
+                    <div class="features-title">Funcionalidades</div>
+                    <div class="features-list">
+                        <div class="feature-item">Infinite Items</div>
+                        <div class="feature-item">Limit Breaks</div>
+                        <div class="feature-item">Trait Roller</div>
+                        <div class="feature-item">Auto Banners</div>
+                        <div class="feature-item">Stats Viewer</div>
+                        <div class="feature-item">Webhook Logs</div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="showModal('loadstringModal', 'lapoHub')">Loadstring</button>
+                    <button class="btn" onclick="showModal('sourceModal', 'lapoHub')">Source</button>
+                </div>
+            </div>
+
+            <div class="script-card">
+                <div class="card-header">
+                    <div class="card-icon">🎲</div>
+                    <div class="card-title-section">
+                        <div class="card-title">Passive Roller V2</div>
+                        <span class="card-badge">Anime Fighters</span>
+                    </div>
+                </div>
+                <p class="card-description">Ferramenta avançada para rolar passivas automaticamente em uma ou várias unidades, com fila e configurações de slot.</p>
+                <div class="features">
+                    <div class="features-title">Funcionalidades</div>
+                    <div class="features-list">
+                        <div class="feature-item">Auto Roll</div>
+                        <div class="feature-item">Multi-Unit Queue</div>
+                        <div class="feature-item">Slot Selection</div>
+                        <div class="feature-item">Machine Selection</div>
+                        <div class="feature-item">Emergency Stop</div>
+                        <div class="feature-item">Configurable Delay</div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="showModal('loadstringModal', 'passiveRoller')">Loadstring</button>
+                    <button class="btn" onclick="showModal('sourceModal', 'passiveRoller')">Source</button>
+                </div>
+            </div>
+
+            <div class="script-card">
+                <div class="card-header">
+                    <div class="card-icon">🐣</div>
+                    <div class="card-title-section">
+                        <div class="card-title">Incubadora FIX</div>
+                        <span class="card-badge">Anime Fighters</span>
+                    </div>
+                </div>
+                <p class="card-description">Script para gerenciar e automatizar suas incubadoras, permitindo colocar, retirar e upar pets facilmente.</p>
+                <div class="features">
+                    <div class="features-title">Funcionalidades</div>
+                    <div class="features-list">
+                        <div class="feature-item">Status Viewer</div>
+                        <div class="feature-item">Select Incubator</div>
+                        <div class="feature-item">Place Pet</div>
+                        <div class="feature-item">Withdraw Pet</div>
+                        <div class="feature-item">Upgrade Incubator</div>
+                        <div class="feature-item">Refresh Pet List</div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="showModal('loadstringModal', 'incubator')">Loadstring</button>
+                    <button class="btn" onclick="showModal('sourceModal', 'incubator')">Source</button>
+                </div>
+            </div>
+
+            <div class="script-card">
+                <div class="card-header">
+                    <div class="card-icon">🌀</div>
+                    <div class="card-title-section">
+                        <div class="card-title">Auto Gate</div>
+                        <span class="card-badge">Anime Fighters</span>
+                    </div>
+                </div>
+                <p class="card-description">Automatiza a abertura e conclusão de gates, com teleporte automático para inimigos para um farm eficiente e contínuo.</p>
+                <div class="features">
+                    <div class="features-title">Funcionalidades</div>
+                    <div class="features-list">
+                        <div class="feature-item">Auto Open Gate</div>
+                        <div class="feature-item">Auto Re-Summon</div>
+                        <div class="feature-item">Select Rank</div>
+                        <div class="feature-item">TP to Enemies</div>
+                        <div class="feature-item">Configurable Range</div>
+                        <div class="feature-item">Fixed Time Loop</div>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="showModal('loadstringModal', 'autoGate')">Loadstring</button>
+                    <button class="btn" onclick="showModal('sourceModal', 'autoGate')">Source</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2025 Luvwas Scripts - Desenvolvido por Luvwas</p>
+        </footer>
+    </div>
+
+    <div id="loadstringModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Loadstring</div>
+                <div class="close" onclick="closeModal('loadstringModal')">×</div>
+            </div>
+            <p>Copie o código abaixo e cole no seu executor:</p>
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-label">Lua Code</span>
+                    <button class="copy-btn" onclick="copyCode(this, 'loadstringCode')">Copiar</button>
+                </div>
+                <pre id="loadstringCode"></pre>
+            </div>
+        </div>
+    </div>
+
+    <div id="sourceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Source Code</div>
+                <div class="close" onclick="closeModal('sourceModal')">×</div>
+            </div>
+            <p>Link direto para o código fonte no GitHub:</p>
+            <div class="code-container">
+                <div class="code-header">
+                    <span class="code-label">GitHub Raw URL</span>
+                    <button class="copy-btn" onclick="copyCode(this, 'sourceCode')">Copiar</button>
+                </div>
+                <pre id="sourceCode"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scripts = {
+            afsHub: {
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/afsgeral"))()',
+                source: 'https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/afsgeral'
+            },
+            lapoHub: {
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/lapohubv3"))()',
+                source: 'https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/lapohubv3'
+            },
+            passiveRoller: {
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Luvwas/LuvwasoGoat/refs/heads/main/passiverrv2"))()',
+                source: 'https://raw.githubusercontent.com/Luvwas/LuvwasoGoat/refs/heads/main/passiverrv2'
+            },
+            incubator: {
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/incubatorfix"))()',
+                source: 'https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/incubatorfix'
+            },
+            autoGate: {
+                loadstring: 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/auotgate"))()',
+                source: 'https://raw.githubusercontent.com/Luvwas/Random-Stuff-Ngl/refs/heads/main/auotgate'
+            }
+        };
+
+        function showModal(modalId, scriptName) {
+            const modal = document.getElementById(modalId);
+            const scriptData = scripts[scriptName];
+            
+            if (modalId === 'loadstringModal') {
+                document.getElementById('loadstringCode').textContent = scriptData.loadstring;
+            } else if (modalId === 'sourceModal') {
+                document.getElementById('sourceCode').textContent = scriptData.source;
+            }
+            
+            modal.classList.add('visible');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('visible');
+            document.body.style.overflow = 'auto';
+        }
+
+        function copyCode(button, elementId) {
+            const code = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copiado!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                closeModal(event.target.id);
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal('loadstringModal');
+                closeModal('sourceModal');
+            }
+        });
+    </script>
+</body>
+</html>
