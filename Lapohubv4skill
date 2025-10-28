@@ -1,0 +1,1084 @@
+-- Lapo Hub — Graphite (UI CORRIGIDO E OTIMIZADO)
+-- Código limpo, organizado e sem bugs visuais
+
+--═══════════════════════════════════════════════════════════════
+--// SERVICES
+--═══════════════════════════════════════════════════════════════
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+--═══════════════════════════════════════════════════════════════
+--// REFERÊNCIAS PRINCIPAIS
+--═══════════════════════════════════════════════════════════════
+local LocalPlayer = Players.LocalPlayer
+local RemoteFolder = ReplicatedStorage:WaitForChild("Remote")
+local AbilityRemote = RemoteFolder:WaitForChild("UnitAbility")
+local UnitsFolder = Workspace:WaitForChild("Units")
+
+--═══════════════════════════════════════════════════════════════
+--// ESTADO GLOBAL
+--═══════════════════════════════════════════════════════════════
+local State = {
+    Flags = {
+        AutoSkill = false,
+        AutoStarkei = false
+    },
+    UIVisible = true,
+    OpenDropdown = nil,
+    Destroyed = false,
+    SelectedUnit = "Nenhuma",
+    SelectedSkill = "",
+    StarkeiTarget = "Nenhuma"
+}
+
+--═══════════════════════════════════════════════════════════════
+--// CRIAÇÃO DA GUI RAIZ
+--═══════════════════════════════════════════════════════════════
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "LapoHubV3"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = game:GetService("CoreGui")
+
+--═══════════════════════════════════════════════════════════════
+--// HELPERS VISUAIS
+--═══════════════════════════════════════════════════════════════
+local function uiStroke(target, color, thickness, transparency)
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color or Color3.fromRGB(60, 60, 80)
+    stroke.Thickness = thickness or 1.2
+    stroke.Transparency = transparency or 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = target
+    return stroke
+end
+
+local function dropShadow(parent, size, transparency)
+    local container = Instance.new("Frame")
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.ZIndex = math.max((parent.ZIndex or 1) - 1, 0)
+    container.ClipsDescendants = false
+    container.Parent = parent
+
+    local shadow = Instance.new("ImageLabel")
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    shadow.Size = size or UDim2.new(1, 16, 1, 16)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://6014261993"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = transparency or 0.45
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(49, 49, 450, 450)
+    shadow.Parent = container
+    return container
+end
+
+local function tween(obj, time, props)
+    local tweenInfo = TweenInfo.new(
+        time or 0.2,
+        Enum.EasingStyle.Quad,
+        Enum.EasingDirection.Out
+    )
+    local t = TweenService:Create(obj, tweenInfo, props)
+    t:Play()
+    return t
+end
+
+--═══════════════════════════════════════════════════════════════
+--// SISTEMA DE NOTIFICAÇÕES
+--═══════════════════════════════════════════════════════════════
+local NotifyRoot = Instance.new("Frame")
+NotifyRoot.BackgroundTransparency = 1
+NotifyRoot.Size = UDim2.new(0, 320, 1, 0)
+NotifyRoot.Position = UDim2.new(1, -340, 0, 0)
+NotifyRoot.ZIndex = 2000
+NotifyRoot.Parent = ScreenGui
+
+local function Notify(title, message, duration)
+    if State.Destroyed then return end
+    
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, 0, 0, 86)
+    card.Position = UDim2.new(0, 340, 0, 16)
+    card.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+    card.BorderSizePixel = 0
+    card.ZIndex = 2001
+    card.Parent = NotifyRoot
+    
+    uiStroke(card, Color3.fromRGB(70, 70, 90), 1, 0.15)
+    dropShadow(card, UDim2.new(1, 24, 1, 24), 0.5)
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, -20, 0, 24)
+    titleLabel.Position = UDim2.new(0, 10, 0, 8)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = title or "Info"
+    titleLabel.TextColor3 = Color3.fromRGB(120, 200, 255)
+    titleLabel.ZIndex = 2002
+    titleLabel.Parent = card
+
+    local bodyLabel = Instance.new("TextLabel")
+    bodyLabel.BackgroundTransparency = 1
+    bodyLabel.Size = UDim2.new(1, -20, 0, 42)
+    bodyLabel.Position = UDim2.new(0, 10, 0, 32)
+    bodyLabel.Font = Enum.Font.Gotham
+    bodyLabel.TextSize = 13
+    bodyLabel.TextWrapped = true
+    bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
+    bodyLabel.Text = message or ""
+    bodyLabel.TextColor3 = Color3.fromRGB(235, 235, 245)
+    bodyLabel.ZIndex = 2002
+    bodyLabel.Parent = card
+
+    tween(card, 0.25, {Position = UDim2.new(0, 0, 0, 16)})
+    
+    task.delay(duration or 3, function()
+        if not card or not card.Parent then return end
+        tween(card, 0.25, {Position = UDim2.new(0, 340, 0, 16)})
+        task.wait(0.25)
+        if card and card.Parent then
+            card:Destroy()
+        end
+    end)
+end
+
+--═══════════════════════════════════════════════════════════════
+--// JANELA PRINCIPAL
+--═══════════════════════════════════════════════════════════════
+local Main = Instance.new("Frame")
+Main.Name = "MainFrame"
+Main.Size = UDim2.new(0, 520, 0, 500)
+Main.Position = UDim2.new(0.5, -260, 0.5, -250)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+Main.ClipsDescendants = true
+Main.ZIndex = 1
+Main.Parent = ScreenGui
+
+dropShadow(Main, UDim2.new(1, 40, 1, 40), 0.55)
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 14)
+uiStroke(Main, Color3.fromRGB(65, 65, 85), 1.2, 0.12)
+
+-- Header
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+Header.BorderSizePixel = 0
+Header.ZIndex = 2
+Header.Parent = Main
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
+
+local Title = Instance.new("TextLabel")
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.Size = UDim2.new(1, -140, 1, 0)
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.Text = "Lapo Hub — Graphite"
+Title.TextColor3 = Color3.fromRGB(230, 230, 240)
+Title.ZIndex = 3
+Title.Parent = Header
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 36, 0, 32)
+CloseButton.Position = UDim2.new(1, -46, 0, 8)
+CloseButton.BackgroundColor3 = Color3.fromRGB(225, 70, 70)
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = Color3.new(1, 1, 1)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 16
+CloseButton.AutoButtonColor = false
+CloseButton.ZIndex = 3
+CloseButton.Parent = Header
+Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0, 10)
+
+CloseButton.MouseButton1Click:Connect(function()
+    if State.Destroyed then return end
+    State.Destroyed = true
+    ScreenGui:Destroy()
+end)
+
+-- Área de Conteúdo (ScrollingFrame)
+local Content = Instance.new("ScrollingFrame")
+Content.Name = "Content"
+Content.Size = UDim2.new(1, -24, 1, -60)
+Content.Position = UDim2.new(0, 12, 0, 52)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ScrollBarThickness = 6
+Content.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 100)
+Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Content.ClipsDescendants = true
+Content.ZIndex = 2
+Content.Parent = Main
+
+local ContentLayout = Instance.new("UIListLayout", Content)
+ContentLayout.Padding = UDim.new(0, 8)
+ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- Container para dropdowns (DENTRO do Main, com ZIndex alto)
+local DropdownContainer = Instance.new("Frame")
+DropdownContainer.Name = "DropdownContainer"
+DropdownContainer.Size = UDim2.new(1, 0, 1, 0)
+DropdownContainer.BackgroundTransparency = 1
+DropdownContainer.ZIndex = 1000
+DropdownContainer.ClipsDescendants = false
+DropdownContainer.Parent = Main
+
+--═══════════════════════════════════════════════════════════════
+--// COMPONENTES DE UI
+--═══════════════════════════════════════════════════════════════
+
+-- Seção (título)
+local function Section(titleText)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 34)
+    frame.BackgroundColor3 = Color3.fromRGB(32, 32, 44)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 2
+    frame.Parent = Content
+    
+    uiStroke(frame, Color3.fromRGB(70, 70, 90), 1, 0.2)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.Size = UDim2.new(1, -24, 1, 0)
+    label.Font = Enum.Font.GothamBold
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextSize = 15
+    label.TextColor3 = Color3.fromRGB(140, 170, 200)
+    label.Text = titleText
+    label.ZIndex = 3
+    label.Parent = frame
+    
+    return frame
+end
+
+-- Botão
+local function Button(text, onClick)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 0, 38)
+    button.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+    button.TextColor3 = Color3.fromRGB(245, 245, 255)
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 13
+    button.Text = text
+    button.AutoButtonColor = false
+    button.ZIndex = 2
+    button.Parent = Content
+    
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 10)
+    uiStroke(button, Color3.fromRGB(70, 70, 90), 1, 0.18)
+
+    button.MouseEnter:Connect(function()
+        tween(button, 0.15, {BackgroundColor3 = Color3.fromRGB(48, 48, 62)})
+    end)
+    
+    button.MouseLeave:Connect(function()
+        tween(button, 0.15, {BackgroundColor3 = Color3.fromRGB(38, 38, 52)})
+    end)
+    
+    button.MouseButton1Click:Connect(function()
+        tween(button, 0.1, {BackgroundColor3 = Color3.fromRGB(58, 58, 72)})
+        task.wait(0.08)
+        tween(button, 0.2, {BackgroundColor3 = Color3.fromRGB(48, 48, 62)})
+        
+        if onClick then
+            task.spawn(function()
+                local success, err = pcall(onClick)
+                if not success then
+                    warn("Erro no botão:", err)
+                end
+            end)
+        end
+    end)
+    
+    return button
+end
+
+-- Toggle
+local function Toggle(text, callback)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, 0, 0, 40)
+    container.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+    container.BorderSizePixel = 0
+    container.ZIndex = 2
+    container.Parent = Content
+    
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0, 10)
+    uiStroke(container, Color3.fromRGB(70, 70, 90), 1, 0.18)
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.Size = UDim2.new(1, -70, 1, 0)
+    label.Text = text
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 13
+    label.TextColor3 = Color3.fromRGB(230, 230, 235)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 3
+    label.Parent = container
+
+    local knob = Instance.new("TextButton")
+    knob.Size = UDim2.new(0, 44, 0, 24)
+    knob.Position = UDim2.new(1, -58, 0.5, -12)
+    knob.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    knob.Text = ""
+    knob.AutoButtonColor = false
+    knob.ZIndex = 3
+    knob.Parent = container
+    
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    uiStroke(knob, Color3.fromRGB(90, 30, 30), 1, 0.2)
+
+    local circle = Instance.new("Frame")
+    circle.Size = UDim2.new(0, 20, 0, 20)
+    circle.Position = UDim2.new(0, 2, 0.5, -10)
+    circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    circle.ZIndex = 4
+    circle.Parent = knob
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+    local state = false
+    
+    local function updateState()
+        if state then
+            tween(knob, 0.15, {BackgroundColor3 = Color3.fromRGB(60, 200, 90)})
+            tween(circle, 0.15, {Position = UDim2.new(1, -22, 0.5, -10)})
+        else
+            tween(knob, 0.15, {BackgroundColor3 = Color3.fromRGB(200, 60, 60)})
+            tween(circle, 0.15, {Position = UDim2.new(0, 2, 0.5, -10)})
+        end
+    end
+    
+    knob.MouseButton1Click:Connect(function()
+        state = not state
+        updateState()
+        
+        if callback then
+            task.spawn(function()
+                local success, err = pcall(callback, state)
+                if not success then
+                    warn("Erro no toggle:", err)
+                end
+            end)
+        end
+    end)
+    
+    updateState()
+    
+    return container, function(newState)
+        state = not not newState
+        updateState()
+    end
+end
+
+-- Dropdown (CORRIGIDO - agora fica dentro do Main)
+local function Dropdown(labelText, options, onSelect)
+    options = options or {"Nenhuma"}
+
+    local holder = Instance.new("Frame")
+    holder.Size = UDim2.new(1, 0, 0, 48)
+    holder.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+    holder.BorderSizePixel = 0
+    holder.ZIndex = 2
+    holder.Parent = Content
+    
+    Instance.new("UICorner", holder).CornerRadius = UDim.new(0, 10)
+    uiStroke(holder, Color3.fromRGB(70, 70, 90), 1, 0.18)
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.Size = UDim2.new(0.44, -12, 1, 0)
+    label.Text = labelText
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextColor3 = Color3.fromRGB(235, 235, 245)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.ZIndex = 3
+    label.Parent = holder
+
+    local button = Instance.new("TextButton")
+    button.Name = "DropdownButton"
+    button.Size = UDim2.new(0.56, -20, 0, 36)
+    button.Position = UDim2.new(0.44, 10, 0.5, -18)
+    button.BackgroundColor3 = Color3.fromRGB(32, 32, 44)
+    button.Text = options[1] or "Nenhuma"
+    button.TextColor3 = Color3.fromRGB(240, 240, 255)
+    button.TextSize = 13
+    button.Font = Enum.Font.Gotham
+    button.AutoButtonColor = false
+    button.ZIndex = 3
+    button.Parent = holder
+    
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+    uiStroke(button, Color3.fromRGB(70, 70, 90), 1, 0.2)
+
+    -- Lista dropdown (agora dentro do DropdownContainer)
+    local list = Instance.new("ScrollingFrame")
+    list.Name = labelText .. "_List"
+    list.Visible = false
+    list.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    list.BorderSizePixel = 0
+    list.Size = UDim2.new(0, 260, 0, 0)
+    list.Position = UDim2.new(0, 0, 0, 0)
+    list.ZIndex = 1001
+    list.ScrollBarThickness = 6
+    list.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 100)
+    list.CanvasSize = UDim2.new(0, 0, 0, 0)
+    list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    list.ClipsDescendants = true
+    list.Parent = DropdownContainer
+    
+    uiStroke(list, Color3.fromRGB(80, 80, 110), 1.5, 0.1)
+    Instance.new("UICorner", list).CornerRadius = UDim.new(0, 8)
+
+    local listLayout = Instance.new("UIListLayout", list)
+    listLayout.Padding = UDim.new(0, 4)
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    
+    Instance.new("UIPadding", list).PaddingTop = UDim.new(0, 4)
+    Instance.new("UIPadding", list).PaddingBottom = UDim.new(0, 4)
+    Instance.new("UIPadding", list).PaddingLeft = UDim.new(0, 4)
+    Instance.new("UIPadding", list).PaddingRight = UDim.new(0, 4)
+
+    local currentSelection = options[1] or "Nenhuma"
+
+    local function makeOption(text, isSelected)
+        local opt = Instance.new("TextButton")
+        opt.Size = UDim2.new(1, -8, 0, 32)
+        opt.BackgroundColor3 = isSelected and Color3.fromRGB(48, 48, 62) or Color3.fromRGB(36, 36, 50)
+        opt.Text = text
+        opt.TextColor3 = Color3.fromRGB(240, 240, 255)
+        opt.TextSize = 12
+        opt.Font = Enum.Font.Gotham
+        opt.AutoButtonColor = false
+        opt.ZIndex = 1002
+        opt.Parent = list
+        
+        Instance.new("UICorner", opt).CornerRadius = UDim.new(0, 6)
+        uiStroke(opt, Color3.fromRGB(70, 70, 90), 1, 0.18)
+
+        opt.MouseEnter:Connect(function()
+            tween(opt, 0.1, {BackgroundColor3 = Color3.fromRGB(55, 55, 70)})
+        end)
+        
+        opt.MouseLeave:Connect(function()
+            local baseColor = (text == currentSelection) and Color3.fromRGB(48, 48, 62) or Color3.fromRGB(36, 36, 50)
+            tween(opt, 0.1, {BackgroundColor3 = baseColor})
+        end)
+
+        opt.MouseButton1Click:Connect(function()
+            currentSelection = text
+            button.Text = text
+            list.Visible = false
+            
+            if State.OpenDropdown == list then
+                State.OpenDropdown = nil
+            end
+            
+            if onSelect then
+                task.spawn(function()
+                    local success, err = pcall(onSelect, text)
+                    if not success then
+                        warn("Erro no dropdown:", err)
+                    end
+                end)
+            end
+        end)
+        
+        return opt
+    end
+
+    local function rebuild(opts)
+        for _, child in ipairs(list:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+        
+        for _, text in ipairs(opts) do
+            makeOption(text, text == currentSelection)
+        end
+        
+        local contentHeight = (#opts * 36) + 8
+        local maxHeight = 200
+        list.Size = UDim2.new(0, 260, 0, math.clamp(contentHeight, 40, maxHeight))
+    end
+
+    local function updateListPosition()
+        local buttonAbsPos = button.AbsolutePosition
+        local buttonAbsSize = button.AbsoluteSize
+        local mainAbsPos = Main.AbsolutePosition
+        
+        -- Posição relativa ao Main
+        local relativeX = buttonAbsPos.X - mainAbsPos.X
+        local relativeY = buttonAbsPos.Y - mainAbsPos.Y + buttonAbsSize.Y + 4
+        
+        -- Ajuste para não sair do Main
+        local listHeight = list.AbsoluteSize.Y
+        local mainHeight = Main.AbsoluteSize.Y
+        
+        if relativeY + listHeight > mainHeight then
+            relativeY = (buttonAbsPos.Y - mainAbsPos.Y) - listHeight - 4
+        end
+        
+        -- Centralizar horizontalmente com o botão
+        local centerX = relativeX + (buttonAbsSize.X / 2) - 130
+        
+        list.Position = UDim2.fromOffset(centerX, relativeY)
+    end
+
+    rebuild(options)
+
+    button.MouseButton1Click:Connect(function()
+        if State.OpenDropdown and State.OpenDropdown ~= list then
+            State.OpenDropdown.Visible = false
+            State.OpenDropdown = nil
+        end
+        
+        list.Visible = not list.Visible
+        
+        if list.Visible then
+            updateListPosition()
+            State.OpenDropdown = list
+        else
+            State.OpenDropdown = nil
+        end
+    end)
+
+    -- Fechar ao clicar fora
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed or not list.Visible then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mouse = UserInputService:GetMouseLocation()
+            local listPos = list.AbsolutePosition
+            local listSize = list.AbsoluteSize
+            local buttonPos = button.AbsolutePosition
+            local buttonSize = button.AbsoluteSize
+            
+            local insideList = (
+                mouse.X >= listPos.X and mouse.X <= listPos.X + listSize.X and
+                mouse.Y >= listPos.Y and mouse.Y <= listPos.Y + listSize.Y
+            )
+            
+            local insideButton = (
+                mouse.X >= buttonPos.X and mouse.X <= buttonPos.X + buttonSize.X and
+                mouse.Y >= buttonPos.Y and mouse.Y <= buttonPos.Y + buttonSize.Y
+            )
+            
+            if not insideList and not insideButton then
+                list.Visible = false
+                if State.OpenDropdown == list then
+                    State.OpenDropdown = nil
+                end
+            end
+        end
+    end)
+
+    -- Atualizar posição continuamente enquanto visível
+    RunService.RenderStepped:Connect(function()
+        if list.Visible then
+            updateListPosition()
+        end
+    end)
+
+    local function setOptions(newOpts)
+        newOpts = newOpts or {"Nenhuma"}
+        if #newOpts == 0 then
+            newOpts = {"Nenhuma"}
+        end
+        
+        if not table.find(newOpts, currentSelection) then
+            currentSelection = newOpts[1]
+            button.Text = currentSelection
+        end
+        
+        rebuild(newOpts)
+    end
+
+    return holder, setOptions, button
+end
+
+--═══════════════════════════════════════════════════════════════
+--// UTILITÁRIOS DE UNIDADE E SKILL
+--═══════════════════════════════════════════════════════════════
+
+local function IsOwnedUnit(instance)
+    local info = instance:FindFirstChild("Info")
+    if not info then return false end
+    
+    local owner = info:FindFirstChild("Owner")
+    return owner and owner.Value == LocalPlayer.Name
+end
+
+local function GetPlayerUnits()
+    local list = {}
+    
+    for _, unit in ipairs(UnitsFolder:GetChildren()) do
+        if IsOwnedUnit(unit) then
+            table.insert(list, unit.Name)
+        end
+    end
+    
+    table.sort(list)
+    return (#list > 0) and list or {"Nenhuma"}
+end
+
+local function LoadActiveSkillsWithCooldown()
+    local allSkills = {}
+    local assets = ReplicatedStorage:FindFirstChild("Assets")
+    
+    if not assets then
+        Notify("Skills — Aviso", "ReplicatedStorage.Assets não encontrado")
+        return {}
+    end
+    
+    local checkUnitModule = assets:FindFirstChild("CheckUnitModule")
+    if not checkUnitModule then
+        Notify("Skills — Aviso", "CheckUnitModule não encontrado")
+        return {}
+    end
+    
+    local checkStatsFolder = checkUnitModule:FindFirstChild("CheckStats")
+    if not checkStatsFolder then
+        Notify("Skills — Aviso", "CheckStats não encontrado")
+        return {}
+    end
+
+    for _, moduleScript in ipairs(checkStatsFolder:GetChildren()) do
+        if moduleScript:IsA("ModuleScript") then
+            local success, result = pcall(function()
+                return require(moduleScript)
+            end)
+            
+            if success and type(result) == "function" then
+                local success2, unitData = pcall(result)
+                
+                if success2 and unitData and unitData.Status then
+                    for _, status in ipairs(unitData.Status) do
+                        local passive = status.Passive
+                        
+                        if passive and passive.Skills then
+                            for _, skill in ipairs(passive.Skills) do
+                                local name = (type(skill) == "table" and skill.Skill)
+                                local cooldown = (type(skill) == "table" and skill.CD)
+                                
+                                if type(name) == "string" and tonumber(cooldown) and tonumber(cooldown) > 0 then
+                                    table.insert(allSkills, name)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Remover duplicatas
+    local unique = {}
+    local output = {}
+    
+    for _, skill in ipairs(allSkills) do
+        if not unique[skill] then
+            unique[skill] = true
+            table.insert(output, skill)
+        end
+    end
+    
+    table.sort(output)
+    return output
+end
+
+local function FireAbility(unitName, skillName)
+    if not unitName or unitName == "" or unitName == "Nenhuma" then
+        return false, "Selecione uma unidade"
+    end
+    
+    if not skillName or skillName == "" or skillName == "(nenhum resultado)" then
+        return false, "Selecione uma skill"
+    end
+    
+    local unit = UnitsFolder:FindFirstChild(unitName)
+    if not unit then
+        return false, "Unidade não encontrada"
+    end
+    
+    if not IsOwnedUnit(unit) then
+        return false, "Esta não é sua unidade"
+    end
+    
+    local success, err = pcall(function()
+        AbilityRemote:FireServer(skillName, unit)
+    end)
+    
+    if not success then
+        return false, tostring(err)
+    end
+    
+    return true
+end
+
+--═══════════════════════════════════════════════════════════════
+--// INICIALIZAÇÃO DE DADOS
+--═══════════════════════════════════════════════════════════════
+
+local AllSkills = LoadActiveSkillsWithCooldown()
+local UnitsList = GetPlayerUnits()
+State.SelectedUnit = UnitsList[1] or "Nenhuma"
+State.SelectedSkill = AllSkills[1] or ""
+State.StarkeiTarget = UnitsList[1] or "Nenhuma"
+
+--═══════════════════════════════════════════════════════════════
+--// CONSTRUÇÃO DA INTERFACE
+--═══════════════════════════════════════════════════════════════
+
+-- Gerenciamento de Unidades
+Section("Gerenciamento de Unidades")
+
+local _, UnitsDropSet, UnitsDropBtn = Dropdown("Unidade", UnitsList, function(selected)
+    State.SelectedUnit = selected
+    Notify("Unidade Selecionada", "Selecionada: " .. selected)
+end)
+
+Button("Atualizar Unidades", function()
+    UnitsList = GetPlayerUnits()
+    UnitsDropSet(UnitsList)
+    UnitsDropBtn.Text = UnitsList[1] or "Nenhuma"
+    State.SelectedUnit = UnitsList[1] or "Nenhuma"
+    Notify("Unidades Atualizadas", "Encontradas " .. #UnitsList .. " unidades")
+end)
+
+-- Seleção de Skills
+Section("Seleção de Skills (APENAS ATIVAS COM COOLDOWN)")
+
+local _, SkillDropSet, SkillDropBtn = Dropdown("Skill", AllSkills, function(selected)
+    State.SelectedSkill = selected
+    Notify("Skill Selecionada", "Selecionada: " .. selected)
+end)
+
+Button("Recarregar Skills", function()
+    AllSkills = LoadActiveSkillsWithCooldown()
+    SkillDropSet(AllSkills)
+    SkillDropBtn.Text = AllSkills[1] or "Nenhuma"
+    State.SelectedSkill = AllSkills[1] or ""
+    Notify("Skills Carregadas", #AllSkills .. " skills ativas")
+end)
+
+-- Busca de Skills
+do
+    local searchHolder = Instance.new("Frame")
+    searchHolder.Size = UDim2.new(1, 0, 0, 48)
+    searchHolder.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+    searchHolder.BorderSizePixel = 0
+    searchHolder.ZIndex = 2
+    searchHolder.Parent = Content
+    
+    Instance.new("UICorner", searchHolder).CornerRadius = UDim.new(0, 10)
+    uiStroke(searchHolder, Color3.fromRGB(70, 70, 90), 1, 0.18)
+
+    local searchLabel = Instance.new("TextLabel")
+    searchLabel.BackgroundTransparency = 1
+    searchLabel.Position = UDim2.new(0, 12, 0, 0)
+    searchLabel.Size = UDim2.new(0.44, -12, 1, 0)
+    searchLabel.Text = "Buscar"
+    searchLabel.Font = Enum.Font.Gotham
+    searchLabel.TextSize = 14
+    searchLabel.TextColor3 = Color3.fromRGB(235, 235, 245)
+    searchLabel.TextXAlignment = Enum.TextXAlignment.Left
+    searchLabel.ZIndex = 3
+    searchLabel.Parent = searchHolder
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Size = UDim2.new(0.56, -20, 0, 36)
+    searchBox.Position = UDim2.new(0.44, 10, 0.5, -18)
+    searchBox.BackgroundColor3 = Color3.fromRGB(32, 32, 44)
+    searchBox.PlaceholderText = "Digite a skill..."
+    searchBox.Text = ""
+    searchBox.TextColor3 = Color3.fromRGB(240, 240, 255)
+    searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 160)
+    searchBox.TextSize = 13
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.ClearTextOnFocus = false
+    searchBox.ZIndex = 3
+    searchBox.Parent = searchHolder
+    
+    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 8)
+    uiStroke(searchBox, Color3.fromRGB(70, 70, 90), 1, 0.2)
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local searchText = (searchBox.Text or ""):lower()
+        
+        if searchText == "" then
+            SkillDropSet(AllSkills)
+            return
+        end
+        
+        local filtered = {}
+        for _, skill in ipairs(AllSkills) do
+            if string.find(string.lower(skill), searchText, 1, true) then
+                table.insert(filtered, skill)
+            end
+        end
+        
+        if #filtered == 0 then
+            filtered = {"(nenhum resultado)"}
+        end
+        
+        SkillDropSet(filtered)
+    end)
+end
+
+-- Controles de Uso
+Section("Controles de Uso")
+
+local _, SetAutoSkill = Toggle("Auto Usar Skill (1s)", function(enabled)
+    State.Flags.AutoSkill = enabled
+    
+    if enabled then
+        Notify("Auto Skill", "Iniciado (intervalo de 1s)")
+        
+        task.spawn(function()
+            while State.Flags.AutoSkill and not State.Destroyed do
+                if State.SelectedUnit ~= "Nenhuma" and State.SelectedSkill ~= "" then
+                    local success, message = FireAbility(State.SelectedUnit, State.SelectedSkill)
+                    
+                    -- Evita spam de notificações
+                    if not success and message and not string.find(message:lower(), "cooldown") then
+                        Notify("Auto Skill — Erro", message, 1.5)
+                    end
+                end
+                
+                task.wait(1)
+            end
+        end)
+    else
+        Notify("Auto Skill", "Parado")
+    end
+end)
+
+Button("Usar Skill (Manual)", function()
+    local success, message = FireAbility(State.SelectedUnit, State.SelectedSkill)
+    
+    if success then
+        Notify("Skill", (State.SelectedSkill or "?") .. " executada")
+    else
+        Notify("Erro", message or "Falha ao executar")
+    end
+end)
+
+-- Buffs Rápidos
+Section("Buffs Rápidos")
+
+local QuickBuffs = {
+    "Road of Stars",
+    "War Devil Uniform Sword",
+    "Overdrive",
+    "Kaioken",
+    "Flight Armor",
+    "Hakari Domain"
+}
+
+local BuffsGrid = Instance.new("Frame")
+BuffsGrid.Size = UDim2.new(1, 0, 0, (math.ceil(#QuickBuffs / 2)) * 44)
+BuffsGrid.BackgroundTransparency = 1
+BuffsGrid.ZIndex = 2
+BuffsGrid.Parent = Content
+
+local GridLayout = Instance.new("UIGridLayout", BuffsGrid)
+GridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
+GridLayout.CellSize = UDim2.new(0.5, -4, 0, 38)
+GridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+for _, buffName in ipairs(QuickBuffs) do
+    local buffButton = Instance.new("TextButton")
+    buffButton.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+    buffButton.TextColor3 = Color3.fromRGB(245, 245, 255)
+    buffButton.Font = Enum.Font.Gotham
+    buffButton.TextSize = 13
+    buffButton.Text = buffName
+    buffButton.AutoButtonColor = false
+    buffButton.ZIndex = 3
+    buffButton.Parent = BuffsGrid
+    
+    Instance.new("UICorner", buffButton).CornerRadius = UDim.new(0, 10)
+    uiStroke(buffButton, Color3.fromRGB(70, 70, 90), 1, 0.18)
+
+    buffButton.MouseEnter:Connect(function()
+        tween(buffButton, 0.15, {BackgroundColor3 = Color3.fromRGB(48, 48, 62)})
+    end)
+    
+    buffButton.MouseLeave:Connect(function()
+        tween(buffButton, 0.15, {BackgroundColor3 = Color3.fromRGB(38, 38, 52)})
+    end)
+
+    buffButton.MouseButton1Click:Connect(function()
+        local success, message = FireAbility(State.SelectedUnit, buffName)
+        
+        if success then
+            Notify("Buff Aplicado", buffName .. " aplicado")
+        else
+            Notify("Buff — Erro", message or "Falha ao aplicar")
+        end
+    end)
+end
+
+-- Sistema Starkei
+Section("Sistema Starkei")
+
+local _, StarkeiDropSet, _StarkeiDropBtn = Dropdown("Alvo Starkei", UnitsList, function(selected)
+    State.StarkeiTarget = selected
+    Notify("Starkei", "Alvo: " .. selected)
+end)
+
+local _, SetAutoStarkei = Toggle("Auto Starkei (1s)", function(enabled)
+    State.Flags.AutoStarkei = enabled
+    
+    if enabled then
+        Notify("Auto Starkei", "Iniciado")
+        
+        task.spawn(function()
+            while State.Flags.AutoStarkei and not State.Destroyed do
+                if State.StarkeiTarget and State.StarkeiTarget ~= "Nenhuma" then
+                    local success, message = FireAbility(State.StarkeiTarget, "Savior of the AWTD")
+                    
+                    if not success and message and not string.find(message:lower(), "cooldown") then
+                        Notify("Starkei — Erro", message, 1.5)
+                    end
+                end
+                
+                task.wait(1)
+            end
+        end)
+    else
+        Notify("Auto Starkei", "Parado")
+    end
+end)
+
+Button("Converter para Starkei", function()
+    local unit = UnitsFolder:FindFirstChild(State.SelectedUnit)
+    
+    if unit and IsOwnedUnit(unit) then
+        local oldName = unit.Name
+        unit.Name = "Starkei"
+        
+        Notify("Convertido", oldName .. " → Starkei")
+        
+        task.wait(0.5)
+        
+        UnitsList = GetPlayerUnits()
+        StarkeiDropSet(UnitsList)
+        UnitsDropSet(UnitsList)
+        UnitsDropBtn.Text = "Starkei"
+        
+        State.SelectedUnit = "Starkei"
+        State.StarkeiTarget = "Starkei"
+    else
+        Notify("Erro", "Unidade inválida para converter")
+    end
+end)
+
+-- Informações
+Section("Informações")
+
+Button("Status do Sistema", function()
+    local statusMessage = string.format(
+        "Skills ativas: %d\nUnidades: %d\nAutoSkill: %s\nAutoStarkei: %s",
+        #AllSkills,
+        #UnitsList,
+        tostring(State.Flags.AutoSkill),
+        tostring(State.Flags.AutoStarkei)
+    )
+    
+    Notify("Status do Sistema", statusMessage, 5)
+end)
+
+--═══════════════════════════════════════════════════════════════
+--// ANIMAÇÕES DE MOSTRAR/OCULTAR
+--═══════════════════════════════════════════════════════════════
+
+local function ShowMainAnimated()
+    if Main.Visible then return end
+    
+    Main.Visible = true
+    Main.BackgroundTransparency = 1
+    Main.Position = UDim2.new(0.5, -260, 0.5, -230)
+    
+    tween(Main, 0.3, {
+        BackgroundTransparency = 0,
+        Position = UDim2.new(0.5, -260, 0.5, -250)
+    })
+end
+
+local function HideMainAnimated()
+    if not Main.Visible then return end
+    
+    tween(Main, 0.3, {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, -260, 0.5, -230)
+    })
+    
+    task.delay(0.3, function()
+        if Main and Main.Parent then
+            Main.Visible = false
+        end
+    end)
+end
+
+--═══════════════════════════════════════════════════════════════
+--// HOTKEY PARA TOGGLE (K)
+--═══════════════════════════════════════════════════════════════
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed or State.Destroyed then return end
+    
+    if input.KeyCode == Enum.KeyCode.K then
+        State.UIVisible = not State.UIVisible
+        
+        -- Fechar dropdown aberto
+        if State.OpenDropdown then
+            State.OpenDropdown.Visible = false
+            State.OpenDropdown = nil
+        end
+        
+        if State.UIVisible then
+            ShowMainAnimated()
+        else
+            HideMainAnimated()
+        end
+    end
+end)
+
+--═══════════════════════════════════════════════════════════════
+--// INICIALIZAÇÃO FINAL
+--═══════════════════════════════════════════════════════════════
+
+Notify(
+    "Lapo Hub — Graphite",
+    string.format("Carregado! %d skills ativas disponíveis", #AllSkills),
+    4
+)
+
+print("[Lapo Hub] Inicializado com sucesso!")
+print("[Lapo Hub] Pressione 'K' para mostrar/ocultar a UI")
